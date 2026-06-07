@@ -176,6 +176,16 @@ class TelegramBot:
                     if sig.index == last_idx - 1:
                         sig_key = f"{symbol}_{sig.label}_{sig.index}"
                         if sig_key not in self.sent_signals:
+                            risk = abs(sig.price - sig.stop)
+                            if sig.direction == 'buy':
+                                target = sig.price + risk * RR_RATIO
+                            else:
+                                target = sig.price - risk * RR_RATIO
+
+                            rr_pct = abs(target - sig.price) / sig.price * 100
+                            if rr_pct < 0.50:
+                                continue
+
                             self.sent_signals.add(sig_key)
                             new_signals.append((sig, symbol))
                             
@@ -231,7 +241,17 @@ async def cmd_signals(update, context):
             df = calculate_indicators(df)
             signals = generate_signals(df)
             recent = [s for s in signals if s.index >= len(df) - 10]
-            msg = format_signals_list(recent, symbol)
+            filtered = []
+            for s in recent:
+                risk = abs(s.price - s.stop)
+                if s.direction == 'buy':
+                    target = s.price + risk * RR_RATIO
+                else:
+                    target = s.price - risk * RR_RATIO
+                rr_pct = abs(target - s.price) / s.price * 100
+                if rr_pct >= 0.50:
+                    filtered.append(s)
+            msg = format_signals_list(filtered, symbol)
             await update.message.reply_text(msg, parse_mode='Markdown')
         except Exception as e:
             await update.message.reply_text(f"Erro {symbol}: {e}")
