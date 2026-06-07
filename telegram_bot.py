@@ -382,27 +382,19 @@ async def hourly_report(context):
     if not bot.running:
         return
 
-    msg = "*RELATORIO HORA*\n\n"
-    total = 0
-    for symbol in SYMBOLS:
-        cap = bot.capital[symbol]
-        trades = bot.trades_count[symbol]
-        wins = bot.wins_count[symbol]
-        pnl = cap - ACCOUNT_SIZE
-        wr = (wins / trades * 100) if trades > 0 else 0
-        open_count = len(bot.open_positions[symbol])
-        tf = TIMEFRAMES.get(symbol, TIMEFRAME)
-        total += cap
+    uptime = datetime.now() - bot.start_time
+    hours = int(uptime.total_seconds() // 3600)
+    minutes = int((uptime.total_seconds() % 3600) // 60)
 
-        emoji = "+" if pnl >= 0 else ""
-        msg += f"*{symbol} ({tf})*\n"
-        msg += f"Banca: ${cap:.2f} ({emoji}{pnl:.2f})\n"
-        msg += f"Trades: {trades} | WR: {wr:.0f}%\n"
-        msg += f"Abertas: {open_count}\n\n"
+    now = datetime.now().strftime("%H:%M")
 
-    total_pnl = total - (ACCOUNT_SIZE * len(SYMBOLS))
-    emoji = "+" if total_pnl >= 0 else ""
-    msg += f"*TOTAL: ${total:.2f} ({emoji}{total_pnl:.2f})*"
+    msg = (
+        f"*BOT ATIVO*\n\n"
+        f"Hora: {now}\n"
+        f"Uptime: {hours}h {minutes}m\n"
+        f"Sinais enviados: {bot.total_signals_sent}\n"
+        f"Monitorando: {', '.join(SYMBOLS)}"
+    )
 
     await context.bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
