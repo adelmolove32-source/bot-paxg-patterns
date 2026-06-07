@@ -1,17 +1,15 @@
+import os
+
 # ============================================================
 # CONFIGURACAO - ESTRATEGIA ELEPHANT + WICK BAR
 # ============================================================
-# PERFIL: "agressivo" ou "conservador"
-# Mude PERFIL_ATIVO para trocar entre os dois
-# ============================================================
 
-PERFIL_ATIVO = "agressivo"   # "agressivo" ou "conservador"
+PERFIL_ATIVO = os.environ.get("PERFIL_ATIVO", "agressivo")
 
 # ============================================================
 # PERFIS
 # ============================================================
 PERFIS = {
-    # PERFIL 1: Agressivo - Muitos trades, mais risco
     "agressivo": {
         "MIN_BAR_RATIO": 1.5,
         "MIN_BARS_BETWEEN": 1,
@@ -21,7 +19,6 @@ PERFIS = {
         "MAX_TRADES_PER_DAY": 999,
         "COOLDOWN_AFTER_LOSS": 0,
     },
-    # PERFIL 2: Conservador - Menos trades, mais seletivo
     "conservador": {
         "MIN_BAR_RATIO": 2.0,
         "MIN_BARS_BETWEEN": 3,
@@ -38,19 +35,19 @@ PERFIS = {
 # ============================================================
 
 # API
-API_KEY = ""
-API_SECRET = ""
+API_KEY = os.environ.get("API_KEY", "")
+API_SECRET = os.environ.get("API_SECRET", "")
 
 # Exchange
-EXCHANGE = "binance"
+EXCHANGE = os.environ.get("EXCHANGE", "binance")
 SYMBOLS = ["BTC/USDT", "ETH/USDT"]
 TIMEFRAMES = {"BTC/USDT": "3m", "ETH/USDT": "5m"}
-TIMEFRAME = "3m"  # fallback
+TIMEFRAME = "3m"
 
 # Risco
-ACCOUNT_SIZE = 200
+ACCOUNT_SIZE = int(os.environ.get("ACCOUNT_SIZE", "200"))
 POSITION_SIZE_PCT = 0.333
-STOP_MODE = "half"       # half = 50%, full = 100%, tiny = 10%
+STOP_MODE = os.environ.get("STOP_MODE", "half")
 RR_RATIO = 3
 
 # Estrategia
@@ -63,9 +60,9 @@ WICK_MIN_RATIO = 1.0
 TF_MINUTES = {"1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
 
 # Telegram
-TELEGRAM_BOT_TOKEN = "8695489796:AAGqGSFn02hxUHAq7U09M-3Z5XVYylqdgAE"
-TELEGRAM_CHAT_ID = "1059819117"
-TELEGRAM_INTERVAL = 10  # segundos entre verificacoes
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_INTERVAL = int(os.environ.get("TELEGRAM_INTERVAL", "10"))
 
 # ============================================================
 # APLICAR PERFIL ATIVO

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: bot-trading-btc-eth
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: API_SECRET
+        sync: false
+      - key: EXCHANGE
+        value: binance
+      - key: PYTHON_VERSION
+        value: "3.11.0"

@@ -7,6 +7,7 @@ import numpy as np
 import time
 import asyncio
 import logging
+import threading
 from datetime import datetime
 
 from config import *
@@ -14,6 +15,24 @@ from strategy import generate_signals, calculate_indicators
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def start_health_server():
+    from flask import Flask
+    app = Flask(__name__)
+
+    @app.route('/')
+    def health():
+        return 'Bot is running', 200
+
+    @app.route('/health')
+    def health_check():
+        return 'OK', 200
+
+    port = int(os.environ.get("PORT", "10000"))
+    thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True)
+    thread.start()
+    logger.info(f"Health server started on port {port}")
 
 
 def fetch_ohlcv(symbol, timeframe, limit=200):
@@ -430,6 +449,8 @@ async def monitor_loop(context):
 def main():
     from telegram import Update, BotCommand
     from telegram.ext import Application, CommandHandler, ContextTypes
+
+    start_health_server()
 
     bot_instance = TelegramBot()
 
