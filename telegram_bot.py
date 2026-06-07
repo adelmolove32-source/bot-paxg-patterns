@@ -188,15 +188,17 @@ async def cmd_start(update, context):
         f"*Bot Elephant + Wick Bar*\n\n"
         f"Perfis: {PERFIL_ATIVO}\n"
         f"Symbols: {', '.join(SYMBOLS)}\n"
-        f"Timeframe: {TIMEFRAME}\n"
+        f"BTC: 3m | ETH: 5m\n"
         f"R:R 1:{RR_RATIO} | Stop: {STOP_MODE}\n\n"
         f"*Comandos:*\n"
         f"/signals - Sinais atuais\n"
         f"/status - Status do bot\n"
         f"/saldo - Saldo simulado\n"
+        f"/relatorio - Relatorio completo\n"
         f"/backtest - Resultado dos 60d\n"
         f"/parar - Parar monitoramento\n"
-        f"/iniciar - Iniciar monitoramento",
+        f"/iniciar - Iniciar monitoramento\n\n"
+        f"Relatorio automatico a cada 1 hora.",
         parse_mode='Markdown'
     )
 
@@ -308,6 +310,68 @@ async def cmd_saldo(update, context):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 
+async def cmd_relatorio(update, context):
+    bot = context.bot_data.get('bot_instance')
+    
+    msg = "*RELATORIO*\n\n"
+    total = 0
+    for symbol in SYMBOLS:
+        cap = bot.capital[symbol]
+        trades = bot.trades_count[symbol]
+        wins = bot.wins_count[symbol]
+        pnl = cap - ACCOUNT_SIZE
+        wr = (wins / trades * 100) if trades > 0 else 0
+        open_count = len(bot.open_positions[symbol])
+        tf = TIMEFRAMES.get(symbol, TIMEFRAME)
+        total += cap
+
+        emoji = "+" if pnl >= 0 else ""
+        msg += f"*{symbol} ({tf})*\n"
+        msg += f"Banca: ${cap:.2f} ({emoji}{pnl:.2f})\n"
+        msg += f"Trades: {trades} | WR: {wr:.0f}%\n"
+        msg += f"Abertas: {open_count}\n\n"
+
+    total_pnl = total - (ACCOUNT_SIZE * len(SYMBOLS))
+    emoji = "+" if total_pnl >= 0 else ""
+    msg += f"*TOTAL: ${total:.2f} ({emoji}{total_pnl:.2f})*"
+
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
+async def hourly_report(context):
+    bot = context.bot_data.get('bot_instance')
+    if not bot.running:
+        return
+
+    msg = "*RELATORIO HORA*\n\n"
+    total = 0
+    for symbol in SYMBOLS:
+        cap = bot.capital[symbol]
+        trades = bot.trades_count[symbol]
+        wins = bot.wins_count[symbol]
+        pnl = cap - ACCOUNT_SIZE
+        wr = (wins / trades * 100) if trades > 0 else 0
+        open_count = len(bot.open_positions[symbol])
+        tf = TIMEFRAMES.get(symbol, TIMEFRAME)
+        total += cap
+
+        emoji = "+" if pnl >= 0 else ""
+        msg += f"*{symbol} ({tf})*\n"
+        msg += f"Banca: ${cap:.2f} ({emoji}{pnl:.2f})\n"
+        msg += f"Trades: {trades} | WR: {wr:.0f}%\n"
+        msg += f"Abertas: {open_count}\n\n"
+
+    total_pnl = total - (ACCOUNT_SIZE * len(SYMBOLS))
+    emoji = "+" if total_pnl >= 0 else ""
+    msg += f"*TOTAL: ${total:.2f} ({emoji}{total_pnl:.2f})*"
+
+    await context.bot.send_message(
+        chat_id=TELEGRAM_CHAT_ID,
+        text=msg,
+        parse_mode='Markdown'
+    )
+
+
 async def monitor_loop(context):
     bot = context.bot_data.get('bot_instance')
     if not bot.running:
@@ -379,11 +443,18 @@ def main():
     app.add_handler(CommandHandler("parar", cmd_parar))
     app.add_handler(CommandHandler("iniciar", cmd_iniciar))
     app.add_handler(CommandHandler("saldo", cmd_saldo))
+    app.add_handler(CommandHandler("relatorio", cmd_relatorio))
 
     app.job_queue.run_repeating(
         monitor_loop,
         interval=TELEGRAM_INTERVAL,
         first=5
+    )
+
+    app.job_queue.run_repeating(
+        hourly_report,
+        interval=3600,
+        first=10
     )
 
     print(f"\n{'='*60}")
