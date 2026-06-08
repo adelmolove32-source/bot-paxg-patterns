@@ -177,7 +177,7 @@ class TelegramBot:
                 self.last_bar_index[symbol] = last_idx
 
                 for sig in signals:
-                    if sig.index == last_idx - 1:
+                    if sig.index >= last_idx - 5 and sig.index < last_idx:
                         sig_key = f"{symbol}_{sig.label}_{sig.index}"
                         if sig_key not in self.sent_signals:
                             risk = abs(sig.price - sig.stop)
