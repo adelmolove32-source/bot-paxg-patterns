@@ -177,7 +177,7 @@ class TelegramBot:
                 self.last_bar_index[symbol] = last_idx
 
                 for sig in signals:
-                    if sig.index >= last_idx - 5 and sig.index < last_idx:
+                    if sig.index >= last_idx - 10 and sig.index < last_idx:
                         sig_key = f"{symbol}_{sig.label}_{sig.index}"
                         if sig_key not in self.sent_signals:
                             risk = abs(sig.price - sig.stop)
@@ -187,7 +187,9 @@ class TelegramBot:
                                 target = sig.price - risk * RR_RATIO
 
                             rr_pct = abs(target - sig.price) / sig.price * 100
+                            logger.info(f"Signal: {sig.label} {symbol} rr_pct={rr_pct:.2f}%")
                             if rr_pct < 0.50:
+                                logger.info(f"Filtered: rr_pct {rr_pct:.2f}% < 0.50%")
                                 continue
 
                             self.sent_signals.add(sig_key)
