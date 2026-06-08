@@ -190,25 +190,26 @@ class TelegramBot:
                             if rr_pct < 0.50:
                                 continue
 
-                            current_price = df['c'].iloc[-1]
-                            if sig.direction == 'buy' and current_price > sig.price * 1.005:
-                                continue
-                            if sig.direction == 'sell' and current_price < sig.price * 0.995:
-                                continue
-
                             self.sent_signals.add(sig_key)
                             new_signals.append((sig, symbol))
                             
-                            entry_usd = self.capital[symbol] * POSITION_SIZE_PCT
-                            
-                            self.open_positions[symbol].append({
-                                'entry': sig.price,
-                                'stop': sig.stop,
-                                'target': target,
-                                'direction': sig.direction,
-                                'entry_usd': entry_usd,
-                                'label': sig.label
-                            })
+                            current_price = df['c'].iloc[-1]
+                            entry_valid = True
+                            if sig.direction == 'buy' and current_price > sig.price * 1.003:
+                                entry_valid = False
+                            if sig.direction == 'sell' and current_price < sig.price * 0.997:
+                                entry_valid = False
+
+                            if entry_valid:
+                                entry_usd = self.capital[symbol] * POSITION_SIZE_PCT
+                                self.open_positions[symbol].append({
+                                    'entry': sig.price,
+                                    'stop': sig.stop,
+                                    'target': target,
+                                    'direction': sig.direction,
+                                    'entry_usd': entry_usd,
+                                    'label': sig.label
+                                })
 
             except Exception as e:
                 logger.error(f"Erro {symbol}: {e}")
