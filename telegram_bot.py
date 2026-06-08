@@ -37,6 +37,8 @@ def start_health_server():
 
 def fetch_ohlcv(symbol, timeframe, limit=200):
     exchange = ccxt.binance({'enableRateLimit': True})
+    import time
+    time.sleep(1)
     data = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
     df = pd.DataFrame(data, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
     df['ts'] = pd.to_datetime(df['ts'], unit='ms')
@@ -533,8 +535,8 @@ def main():
 
     app.job_queue.run_repeating(
         monitor_loop,
-        interval=30,
-        first=5
+        interval=60,
+        first=30
     )
 
     app.job_queue.run_repeating(
