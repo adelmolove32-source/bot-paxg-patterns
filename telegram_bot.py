@@ -381,6 +381,24 @@ async def cmd_relatorio(update, context):
     await update.message.reply_text(msg, parse_mode='Markdown')
 
 
+async def cmd_test(update, context):
+    msg = (
+        "🟢 *BUY* `SYM_TRI_BULL` *BTC/USDT*\n\n"
+        "Entrada: `$63,850.00`\n"
+        "Stop:    `$63,650.00` (-0.31%)\n"
+        "Target:  `$64,450.00` (+0.94%)\n"
+        "R:R  1:3\n\n"
+        "--- SIMULACAO ---\n"
+        "Banca: $200.00\n"
+        "Entrada: $66.60 (0.001043)\n"
+        "Risco: $0.21\n"
+        "Ganho: $0.62\n"
+        "Trades: 5 | WR: 60%\n"
+        "TF: 3m"
+    )
+    await update.message.reply_text(msg, parse_mode='Markdown')
+
+
 async def hourly_report(context):
     bot = context.bot_data.get('bot_instance')
     if not bot.running:
@@ -481,6 +499,7 @@ def main():
     app.add_handler(CommandHandler("iniciar", cmd_iniciar))
     app.add_handler(CommandHandler("saldo", cmd_saldo))
     app.add_handler(CommandHandler("relatorio", cmd_relatorio))
+    app.add_handler(CommandHandler("test", cmd_test))
 
     app.job_queue.run_repeating(
         monitor_loop,
