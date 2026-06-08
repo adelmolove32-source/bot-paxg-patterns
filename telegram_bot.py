@@ -91,7 +91,7 @@ def format_signals_list(signals, symbol, df=None):
         arrow = "BUY" if sig.direction == 'buy' else "SELL"
         color = "🟢" if sig.direction == 'buy' else "🔴"
         if df is not None and sig.index < len(df):
-            ts = df.index[sig.index].strftime('%d/%m %H:%M')
+            ts = (df.index[sig.index] - pd.Timedelta(hours=3)).strftime('%d/%m %H:%M')
         else:
             ts = "?"
         msg += f"{color} `{ts}` `{sig.label}` {arrow} @ `${sig.price:,.2f}`\n"
