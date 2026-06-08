@@ -82,7 +82,7 @@ def format_signal(sig, symbol, capital=200, trades=0, wins=0):
     return msg
 
 
-def format_signals_list(signals, symbol):
+def format_signals_list(signals, symbol, df=None):
     if not signals:
         return f"*{symbol}* - Nenhum sinal recente"
 
@@ -90,7 +90,11 @@ def format_signals_list(signals, symbol):
     for sig in signals[-8:]:
         arrow = "BUY" if sig.direction == 'buy' else "SELL"
         color = "🟢" if sig.direction == 'buy' else "🔴"
-        msg += f"{color} `{sig.label}` {arrow} @ `${sig.price:,.2f}`\n"
+        if df is not None and sig.index < len(df):
+            ts = df.index[sig.index].strftime('%d/%m %H:%M')
+        else:
+            ts = "?"
+        msg += f"{color} `{ts}` `{sig.label}` {arrow} @ `${sig.price:,.2f}`\n"
     return msg
 
 
@@ -251,7 +255,7 @@ async def cmd_signals(update, context):
                 rr_pct = abs(target - s.price) / s.price * 100
                 if rr_pct >= 0.50:
                     filtered.append(s)
-            msg = format_signals_list(filtered, symbol)
+            msg = format_signals_list(filtered, symbol, df)
             await update.message.reply_text(msg, parse_mode='Markdown')
         except Exception as e:
             await update.message.reply_text(f"Erro {symbol}: {e}")
