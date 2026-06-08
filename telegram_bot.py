@@ -433,10 +433,15 @@ async def monitor_loop(context):
     if not bot.running:
         return
 
+    import time as _time
+
     for symbol in SYMBOLS:
         try:
+            _time.sleep(1)
             tf = TIMEFRAMES.get(symbol, TIMEFRAME)
-            df = fetch_ohlcv(symbol, tf, limit=5)
+            df = fetch_ohlcv(symbol, tf, limit=200)
+            df = calculate_indicators(df)
+
             high = df['h'].iloc[-1]
             low = df['l'].iloc[-1]
             
@@ -456,27 +461,53 @@ async def monitor_loop(context):
                     text=msg,
                     parse_mode='Markdown'
                 )
-        except Exception as e:
-            logger.error(f"Erro check positions {symbol}: {e}")
 
-    new_signals = bot.check_signals()
-    for sig, symbol in new_signals:
-        msg = format_signal(
-            sig, symbol,
-            capital=bot.capital[symbol],
-            trades=bot.trades_count[symbol],
-            wins=bot.wins_count[symbol]
-        )
-        try:
-            await context.bot.send_message(
-                chat_id=TELEGRAM_CHAT_ID,
-                text=msg,
-                parse_mode='Markdown'
-            )
-            bot.total_signals_sent += 1
-            logger.info(f"Signal sent: {sig.label} {symbol}")
+            from strategy import generate_signals as gen_sigs
+            signals = gen_sigs(df)
+            last_idx = len(df) - 1
+            if symbol not in bot.last_bar_index or bot.last_bar_index[symbol] != last_idx:
+                bot.last_bar_index[symbol] = last_idx
+                for sig in signals:
+                    if sig.index >= last_idx - 10 and sig.index < last_idx:
+                        sig_key = f"{symbol}_{sig.label}_{sig.index}"
+                        if sig_key not in bot.sent_signals:
+                            risk = abs(sig.price - sig.stop)
+                            if sig.direction == 'buy':
+                                target = sig.price + risk * RR_RATIO
+                            else:
+                                target = sig.price - risk * RR_RATIO
+
+                            rr_pct = abs(target - sig.price) / sig.price * 100
+                            logger.info(f"Signal: {sig.label} {symbol} rr_pct={rr_pct:.2f}%")
+                            if rr_pct < 0.50:
+                                continue
+
+                            bot.sent_signals.add(sig_key)
+                            msg = format_signal(sig, symbol, capital=bot.capital[symbol], trades=bot.trades_count[symbol], wins=bot.wins_count[symbol])
+                            try:
+                                await context.bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg, parse_mode='Markdown')
+                                bot.total_signals_sent += 1
+                                logger.info(f"Signal sent: {sig.label} {symbol}")
+                            except Exception as e:
+                                logger.error(f"Erro ao enviar: {e}")
+
+                            entry_usd = bot.capital[symbol] * POSITION_SIZE_PCT
+                            entry_valid = True
+                            current_price = df['c'].iloc[-1]
+                            if sig.direction == 'buy' and current_price > sig.price * 1.003:
+                                entry_valid = False
+                            if sig.direction == 'sell' and current_price < sig.price * 0.997:
+                                entry_valid = False
+                            if entry_valid:
+                                bot.open_positions[symbol].append({
+                                    'entry': sig.price, 'stop': sig.stop, 'target': target,
+                                    'direction': sig.direction, 'entry_usd': entry_usd, 'label': sig.label
+                                })
+
         except Exception as e:
-            logger.error(f"Erro ao enviar: {e}")
+            logger.error(f"Erro {symbol}: {e}")
+
+        _time.sleep(1)
 
 
 def main():
@@ -502,7 +533,7 @@ def main():
 
     app.job_queue.run_repeating(
         monitor_loop,
-        interval=TELEGRAM_INTERVAL,
+        interval=30,
         first=5
     )
 
