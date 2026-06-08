@@ -190,14 +190,14 @@ class TelegramBot:
                             if rr_pct < 0.50:
                                 continue
 
+                            current_price = df['c'].iloc[-1]
+                            if sig.direction == 'buy' and current_price > sig.price * 1.005:
+                                continue
+                            if sig.direction == 'sell' and current_price < sig.price * 0.995:
+                                continue
+
                             self.sent_signals.add(sig_key)
                             new_signals.append((sig, symbol))
-                            
-                            risk = abs(sig.price - sig.stop)
-                            if sig.direction == 'buy':
-                                target = sig.price + risk * RR_RATIO
-                            else:
-                                target = sig.price - risk * RR_RATIO
                             
                             entry_usd = self.capital[symbol] * POSITION_SIZE_PCT
                             
@@ -432,14 +432,10 @@ async def monitor_loop(context):
 
     for symbol in SYMBOLS:
         try:
-            ticker = context.bot_data.get('exchange', {}).get(symbol, {})
-            if not ticker:
-                from telegram_bot import fetch_ohlcv
-                exchange = ccxt.binance({'enableRateLimit': True})
-                ticker = exchange.fetch_ticker(symbol)
-            
-            high = ticker.get('high', 0)
-            low = ticker.get('low', 0)
+            tf = TIMEFRAMES.get(symbol, TIMEFRAME)
+            df = fetch_ohlcv(symbol, tf, limit=5)
+            high = df['h'].iloc[-1]
+            low = df['l'].iloc[-1]
             
             closed = bot.check_positions(symbol, high, low)
             for trade in closed:
