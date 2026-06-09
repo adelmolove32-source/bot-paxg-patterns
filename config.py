@@ -49,6 +49,7 @@ ACCOUNT_SIZE = int(os.environ.get("ACCOUNT_SIZE", "200"))
 POSITION_SIZE_PCT = 0.333
 STOP_MODE = os.environ.get("STOP_MODE", "half")
 RR_RATIO = 3
+MIN_RR_PCT = 0.25        # filtro minimo de R:R em percentual (0 = desabilitado)
 
 # Estrategia
 ELEPHANT_BODY_PCT = 0.55

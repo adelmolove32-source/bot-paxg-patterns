@@ -75,10 +75,11 @@ def calculate_target(entry, stop, direction):
         return entry - risk * RR_RATIO
 
 
-def run_backtest(df, strategy='all'):
+def run_backtest(df, strategy='all', min_rr_pct=0):
     """
     Executa backtest.
     strategy: 'elephant', 'wick', 'patterns', ou 'all'
+    min_rr_pct: filtro minimo de R:R em percentual (0 = sem filtro)
     """
     df = calculate_indicators(df)
     n = len(df)
@@ -117,6 +118,11 @@ def run_backtest(df, strategy='all'):
         stop = calculate_stop_dist(entry_price, H[i], L[i], direction)
         target = calculate_target(entry_price, stop, direction)
 
+        risk = abs(entry_price - stop)
+        rr_pct = risk * RR_RATIO / entry_price * 100
+        if rr_pct < min_rr_pct:
+            continue
+
         if direction == 'buy' and H[entry_idx] <= H[i]:
             continue
         if direction == 'sell' and L[entry_idx] >= L[i]:
@@ -152,6 +158,11 @@ def run_backtest(df, strategy='all'):
             stop = pat['stop']
             target = pat['target']
             direction = pat['direction']
+
+            risk = abs(entry_price - stop)
+            rr_pct = risk * RR_RATIO / entry_price * 100
+            if rr_pct < min_rr_pct:
+                continue
 
             # Entry na barra do sinal
             exit_price, reason, bars_held = sim_exit(df, idx, stop, target, n, direction)

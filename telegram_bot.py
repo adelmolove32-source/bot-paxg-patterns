@@ -188,10 +188,10 @@ class TelegramBot:
                             else:
                                 target = sig.price - risk * RR_RATIO
 
-                            rr_pct = abs(target - sig.price) / sig.price * 100
+                            rr_pct = risk * RR_RATIO / sig.price * 100
                             logger.info(f"Signal: {sig.label} {symbol} rr_pct={rr_pct:.2f}%")
-                            if rr_pct < 0.50:
-                                logger.info(f"Filtered: rr_pct {rr_pct:.2f}% < 0.50%")
+                            if MIN_RR_PCT > 0 and rr_pct < MIN_RR_PCT:
+                                logger.info(f"Filtered: rr_pct {rr_pct:.2f}% < {MIN_RR_PCT}%")
                                 continue
 
                             self.sent_signals.add(sig_key)
@@ -258,7 +258,7 @@ async def cmd_signals(update, context):
                 else:
                     target = s.price - risk * RR_RATIO
                 rr_pct = abs(target - s.price) / s.price * 100
-                if rr_pct >= 0.50:
+                if MIN_RR_PCT == 0 or rr_pct >= MIN_RR_PCT:
                     filtered.append(s)
             msg = format_signals_list(filtered, symbol, df)
             await update.message.reply_text(msg, parse_mode='Markdown')
@@ -479,9 +479,10 @@ async def monitor_loop(context):
                             else:
                                 target = sig.price - risk * RR_RATIO
 
-                            rr_pct = abs(target - sig.price) / sig.price * 100
+                            rr_pct = risk * RR_RATIO / sig.price * 100
                             logger.info(f"Signal: {sig.label} {symbol} rr_pct={rr_pct:.2f}%")
-                            if rr_pct < 0.50:
+                            if MIN_RR_PCT > 0 and rr_pct < MIN_RR_PCT:
+                                logger.info(f"Filtered: rr_pct {rr_pct:.2f}% < {MIN_RR_PCT}%")
                                 continue
 
                             bot.sent_signals.add(sig_key)
