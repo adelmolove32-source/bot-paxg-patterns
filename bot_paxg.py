@@ -36,7 +36,10 @@ def start_health_server():
 
 
 def fetch_ohlcv(symbol, timeframe, limit=200):
-    exchange = ccxt.binance({'enableRateLimit': True})
+    exchange = ccxt.binance({
+        'enableRateLimit': True,
+        'options': {'defaultType': 'spot'}
+    })
     time.sleep(1)
     data = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
     df = pd.DataFrame(data, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
