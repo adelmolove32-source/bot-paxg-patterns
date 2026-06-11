@@ -1,19 +1,17 @@
 services:
   - type: web
-    name: bot-trading-btc-eth
+    name: bot-paxg-patterns
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python telegram_bot.py
+    startCommand: python bot_paxg.py
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_CHAT_ID
         sync: false
-      - key: API_KEY
-        sync: false
-      - key: API_SECRET
-        sync: false
-      - key: EXCHANGE
-        value: binance
+      - key: ACCOUNT_SIZE
+        value: "200"
+      - key: STOP_MODE
+        value: half
       - key: PYTHON_VERSION
         value: "3.11.0"
