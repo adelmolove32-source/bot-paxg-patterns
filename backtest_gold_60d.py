@@ -8,8 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from collections import Counter
 
-from config import STOP_MODE, RR_RATIO
-from strategy import detect_elephant_bars, detect_wick_bars, calculate_indicators
+from config_paxg import STOP_MODE, RR_RATIO
 from patterns import detect_all_patterns
 
 
@@ -49,6 +48,16 @@ def sim_exit(df, entry_idx, stop, target, n, direction):
     return df.iloc[end]['c'], 'TO', end - entry_idx
 
 
+def calculate_indicators(df):
+    import numpy as np
+    df = df.copy()
+    df['body'] = abs(df['c'] - df['o'])
+    df['rng'] = (df['h'] - df['l']).replace(0, np.nan)
+    df['avg_rng'] = df['rng'].rolling(10).mean()
+    df['ema20'] = df['c'].ewm(span=20, adjust=False).mean()
+    return df
+
+
 def calculate_stop_dist(entry_price, high, low, direction):
     bar_range = high - low
     if STOP_MODE == 'half':
@@ -71,98 +80,39 @@ def calculate_target(entry, stop, direction):
         return entry - risk * RR_RATIO
 
 
-def run_backtest(df, strategy='all', min_rr_pct=0):
+def run_backtest(df, min_rr_pct=0):
     df = calculate_indicators(df)
     n = len(df)
     trades = []
 
-    elephants = detect_elephant_bars(df)
-    wicks = detect_wick_bars(df)
     patterns = detect_all_patterns(df)
 
-    H = df['h'].values
-    L = df['l'].values
-
-    items = []
-    if strategy in ('elephant', 'all'):
-        items.extend(elephants)
-    if strategy in ('wick', 'all'):
-        items.extend(wicks)
-
-    for item in items:
-        i = item['index']
-        if i + 2 >= n:
+    for pat in patterns:
+        idx = pat['index']
+        if idx >= n:
             continue
-        entry_idx = i + 1
-        if entry_idx >= n:
-            continue
-
-        if item['type'] == 'elephant':
-            direction = 'buy' if item['is_bull'] else 'sell'
-            entry_price = H[i] if direction == 'buy' else L[i]
-        else:
-            direction = 'buy' if item['wick_type'] == 'bull_wick' else 'sell'
-            entry_price = H[i] if direction == 'buy' else L[i]
-
-        stop = calculate_stop_dist(entry_price, H[i], L[i], direction)
-        target = calculate_target(entry_price, stop, direction)
+        entry_price = pat['entry']
+        stop = pat['stop']
+        target = pat['target']
+        direction = pat['direction']
 
         risk = abs(entry_price - stop)
         rr_pct = risk * RR_RATIO / entry_price * 100
         if rr_pct < min_rr_pct:
             continue
 
-        if direction == 'buy' and H[entry_idx] <= H[i]:
-            continue
-        if direction == 'sell' and L[entry_idx] >= L[i]:
-            continue
-
-        exit_price, reason, bars_held = sim_exit(df, entry_idx, stop, target, n, direction)
+        exit_price, reason, bars_held = sim_exit(df, idx, stop, target, n, direction)
 
         if direction == 'buy':
             pnl = ((exit_price - entry_price) / entry_price * 100)
         else:
             pnl = ((entry_price - exit_price) / entry_price * 100)
 
-        if item['type'] == 'elephant':
-            label = 'E+_' if item.get('is_plus', False) else 'E_'
-            label += '1st' if item.get('is_first', True) else '2nd+'
-            label += '_Bull' if item['is_bull'] else '_Bear'
-        else:
-            label = 'Wick_Bull' if item['wick_type'] == 'bull_wick' else 'Wick_Bear'
-
         trades.append({
-            'et': df.index[entry_idx], 'ep': entry_price, 'pnl': pnl,
-            'xr': reason, 'bh': bars_held, 'pt': label, 'bull': direction == 'buy'
+            'et': df.index[idx], 'ep': entry_price, 'pnl': pnl,
+            'xr': reason, 'bh': bars_held, 'pt': pat['label'],
+            'bull': direction == 'buy'
         })
-
-    if strategy in ('patterns', 'all'):
-        for pat in patterns:
-            idx = pat['index']
-            if idx >= n:
-                continue
-            entry_price = pat['entry']
-            stop = pat['stop']
-            target = pat['target']
-            direction = pat['direction']
-
-            risk = abs(entry_price - stop)
-            rr_pct = risk * RR_RATIO / entry_price * 100
-            if rr_pct < min_rr_pct:
-                continue
-
-            exit_price, reason, bars_held = sim_exit(df, idx, stop, target, n, direction)
-
-            if direction == 'buy':
-                pnl = ((exit_price - entry_price) / entry_price * 100)
-            else:
-                pnl = ((entry_price - exit_price) / entry_price * 100)
-
-            trades.append({
-                'et': df.index[idx], 'ep': entry_price, 'pnl': pnl,
-                'xr': reason, 'bh': bars_held, 'pt': pat['label'],
-                'bull': direction == 'buy'
-            })
 
     trades.sort(key=lambda x: x['et'])
     return trades
@@ -234,23 +184,22 @@ def main():
                     continue
                 print(f"{len(df)} barras")
 
-                for strategy in ['elephant', 'wick', 'patterns', 'all']:
-                    trades = run_backtest(df, strategy)
-                    if not trades:
-                        print(f"    [{strategy}]: 0 trades")
-                        continue
+                trades = run_backtest(df)
+                if not trades:
+                    print(f"    0 trades")
+                    continue
 
-                    m = calc_metrics(trades)
-                    c = Counter(t['pt'] for t in trades)
-                    per_day = m['t'] / days
+                m = calc_metrics(trades)
+                c = Counter(t['pt'] for t in trades)
+                per_day = m['t'] / days
 
-                    print(f"\n    [{strategy}]: {m['t']} trades ({per_day:.1f}/dia)")
-                    print(f"      WR: {m['wr']}% | PnL: {m['pnl']:+.2f}% | PF: {m['pf']:.2f} | MDD: {m['mdd']:.2f}% | $Final: ${m['final']:,.0f}")
+                print(f"\n    {m['t']} trades ({per_day:.1f}/dia)")
+                print(f"      WR: {m['wr']}% | PnL: {m['pnl']:+.2f}% | PF: {m['pf']:.2f} | MDD: {m['mdd']:.2f}% | $Final: ${m['final']:,.0f}")
 
-                    print(f"      Por tipo:")
-                    for k, v in c.most_common(15):
-                        wr_info = m['by_type'].get(k, {})
-                        print(f"        {k:20s}: {v:4d} trades | WR: {wr_info.get('wr', 0):.1f}% | PnL: {wr_info.get('pnl', 0):+.2f}%")
+                print(f"      Por tipo:")
+                for k, v in c.most_common(15):
+                    wr_info = m['by_type'].get(k, {})
+                    print(f"        {k:20s}: {v:4d} trades | WR: {wr_info.get('wr', 0):.1f}% | PnL: {wr_info.get('pnl', 0):+.2f}%")
                 print()
 
             except Exception as e:

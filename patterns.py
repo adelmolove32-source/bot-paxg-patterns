@@ -11,7 +11,7 @@ Cada funcao retorna lista de sinais com:
   - label: descricao
 """
 import numpy as np
-from config import *
+from config_paxg import *
 
 
 def _find_swing_highs(lows, highs, order=5):

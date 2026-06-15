@@ -164,62 +164,7 @@ class TelegramBot:
         self.open_positions = remaining
         return closed
 
-    def check_signals(self):
-        new_signals = []
-        try:
-            df = fetch_ohlcv(SYMBOL, TIMEFRAME, limit=200)
-            df = calculate_indicators(df)
-            signals = generate_signals(df)
-
-            last_idx = len(df) - 1
-            if self.last_bar_index == last_idx:
-                return []
-            self.last_bar_index = last_idx
-
-            for sig in signals:
-                if sig.index >= last_idx - 10 and sig.index < last_idx:
-                    sig_key = f"{sig.label}_{sig.index}"
-                    if sig_key not in self.sent_signals:
-                        risk = abs(sig.price - sig.stop)
-                        if sig.direction == 'buy':
-                            target = sig.price + risk * RR_RATIO
-                        else:
-                            target = sig.price - risk * RR_RATIO
-
-                        rr_pct = risk * RR_RATIO / sig.price * 100
-                        logger.info(f"Signal: {sig.label} rr_pct={rr_pct:.2f}%")
-                        if MIN_RR_PCT > 0 and rr_pct < MIN_RR_PCT:
-                            logger.info(f"Filtered: rr_pct {rr_pct:.2f}% < {MIN_RR_PCT}%")
-                            continue
-
-                        self.sent_signals.add(sig_key)
-                        new_signals.append(sig)
-
-                        current_price = df['c'].iloc[-1]
-                        entry_valid = True
-                        if sig.direction == 'buy' and current_price > sig.price * 1.003:
-                            entry_valid = False
-                        if sig.direction == 'sell' and current_price < sig.price * 0.997:
-                            entry_valid = False
-
-                        if entry_valid and len(self.open_positions) < MAX_OPEN_POSITIONS:
-                            entry_usd = self.capital * POSITION_SIZE_PCT
-                            self.open_positions.append({
-                                'entry': sig.price,
-                                'stop': sig.stop,
-                                'target': target,
-                                'direction': sig.direction,
-                                'entry_usd': entry_usd,
-                                'label': sig.label
-                            })
-
-        except Exception as e:
-            logger.error(f"Erro: {e}")
-
-        return new_signals
-
-
-async def cmd_start(update, context):
+    async def cmd_start(update, context):
     await update.message.reply_text(
         f"*Bot PAXG Patterns*\n\n"
         f"Par: {SYMBOL}\n"
@@ -395,7 +340,6 @@ async def monitor_loop(context):
 
     try:
         df = fetch_ohlcv(SYMBOL, TIMEFRAME, limit=200)
-        df = calculate_indicators(df)
 
         high = df['h'].iloc[-1]
         low = df['l'].iloc[-1]
@@ -449,9 +393,9 @@ async def monitor_loop(context):
                         entry_usd = bot.capital * POSITION_SIZE_PCT
                         entry_valid = True
                         current_price = df['c'].iloc[-1]
-                        if sig.direction == 'buy' and current_price > sig.price * 1.003:
+                        if sig.direction == 'buy' and current_price > sig.price * 1.01:
                             entry_valid = False
-                        if sig.direction == 'sell' and current_price < sig.price * 0.997:
+                        if sig.direction == 'sell' and current_price < sig.price * 0.99:
                             entry_valid = False
                         if entry_valid and len(bot.open_positions) < MAX_OPEN_POSITIONS:
                             bot.open_positions.append({

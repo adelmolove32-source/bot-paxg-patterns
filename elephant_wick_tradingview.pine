@@ -1,0 +1,198 @@
+// ============================================================
+// ELEPHANT + WICK BAR STRATEGY - TradingView v6
+// Baseado no bot de backtest - v2 corrigido
+// ============================================================
+//@version=6
+strategy("Elephant + Wick Bar Strategy v2", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=33, calc_on_every_tick=true)
+
+// ============================================================
+// INPUTS
+// ============================================================
+grp_filtros = "Filtros"
+minBarRatio    = input.float(1.5, "Barra Minima (x media)", minval=1.0, maxval=5.0, group=grp_filtros)
+lookbackEMA    = input.int(20, "EMA Periodo", minval=5, maxval=50, group=grp_filtros)
+useEMAFilter   = input.bool(false, "Filtro EMA Ativo", group=grp_filtros)
+cooldownBars   = input.int(1, "Cooldown entre sinais (barras)", minval=0, maxval=10, group=grp_filtros)
+
+grp_risco = "Risco"
+rrRatio        = input.float(3.0, "R:R Ratio", minval=1.0, maxval=10.0, step=0.5, group=grp_risco)
+stopMode       = input.string("half", "Stop Mode", options=["half", "full", "tight"], group=grp_risco)
+
+grp_elephant = "Elephant Bars"
+bodyPct           = input.float(0.55, "Corpo Minimo (%)", minval=0.3, maxval=0.9, step=0.05, group=grp_elephant)
+elephantLookback  = input.int(10, "Lookback para media", minval=5, maxval=30, group=grp_elephant)
+onlyFirst         = input.bool(false, "Apenas Primeira Elefante", group=grp_elephant)
+usePlus           = input.bool(false, "Filtrar Elephant Plus", group=grp_elephant)
+plusThreshold     = input.float(0.2, "Plus Threshold (topo/base)", minval=0.05, maxval=0.5, step=0.05, group=grp_elephant)
+
+grp_wick = "Wick Bars"
+wickMinRatio  = input.float(1.0, "Wick Min Ratio (vs corpo)", minval=0.5, maxval=3.0, step=0.1, group=grp_wick)
+onlyBearWick  = input.bool(false, "Apenas Bear Wicks", group=grp_wick)
+
+grp_vis = "Visual"
+showElephant  = input.bool(true, "Mostrar Elephant", group=grp_vis)
+showWick      = input.bool(true, "Mostrar Wick", group=grp_vis)
+showEMA       = input.bool(false, "Mostrar EMA", group=grp_vis)
+
+// ============================================================
+// INDICADORES
+// ============================================================
+body    = math.abs(close - open)
+rng     = high - low
+
+// Evitar divisao por zero
+avgRng  = rng > 0 ? ta.sma(rng, 10) : na
+ema20   = ta.ema(close, lookbackEMA)
+
+isGreen = close > open
+isRed   = close < open
+
+wickUp = high - math.max(open, close)
+wickDn = math.min(open, close) - low
+
+// ============================================================
+// ELEPHANT BAR - igual ao bot Python
+// ============================================================
+barRange = high - low
+isSolid  = rng > 0 ? (body / rng) >= bodyPct : false
+isElephant = barRange >= avgRng * minBarRatio and isSolid and rng > 0
+
+elephantBull = isElephant and isGreen and (not useEMAFilter or close > ema20)
+elephantBear = isElephant and isRed and (not useEMAFilter or close < ema20)
+
+prevMaxRng      = ta.highest(rng[1], elephantLookback)
+isFirstElephant = barRange > prevMaxRng * 1.2
+elephantBull    := elephantBull and (not onlyFirst or isFirstElephant)
+elephantBear    := elephantBear and (not onlyFirst or isFirstElephant)
+
+isPlusBull = isGreen and close >= high - barRange * plusThreshold
+isPlusBear = isRed and close <= low + barRange * plusThreshold
+
+if usePlus
+    elephantBull := elephantBull and isPlusBull
+    elephantBear := elephantBear and isPlusBear
+
+// Cooldown elephant
+lastElephBar    = ta.barssince(elephantBull or elephantBear)
+elephantBull    := elephantBull and (na(lastElephBar) or lastElephBar > cooldownBars)
+elephantBear    := elephantBear and (na(lastElephBar) or lastElephBar > cooldownBars)
+
+// ============================================================
+// WICK BAR - EXATAMENTE igual ao bot Python
+// ============================================================
+// Bot: max_wick = max(wick_up, wick_dn)
+// Bot: if max_wick <= body * WICK_MIN_RATIO: continue
+// Bot: if wick_dn > wick_up and wick_dn > body: bull_wick
+// Bot: elif wick_up > wick_dn and wick_up > body: bear_wick
+
+maxWick = math.max(wickUp, wickDn)
+
+// Condicao 1: max_wick deve ser maior que body * wickMinRatio
+cond1_wick = maxWick > body * wickMinRatio
+
+// Condicao 2: rng > 0
+cond2_rng = rng > 0
+
+// Bull wick: wick_dn > wick_up E wick_dn > body
+cond_bull = wickDn > wickUp and wickDn > body
+
+// Bear wick: wick_up > wick_dn E wick_up > body
+cond_bear = wickUp > wickDn and wickUp > body
+
+// Sinais wick brutos (sem filtro EMA/cooldown ainda)
+wickBullRaw = cond1_wick and cond2_rng and cond_bull and not onlyBearWick
+wickBearRaw = cond1_wick and cond2_rng and cond_bear
+
+// Filtro EMA
+wickBullEMA = wickBullRaw and (not useEMAFilter or close > ema20)
+wickBearEMA = wickBearRaw and (not useEMAFilter or close < ema20)
+
+// Cooldown separado para wicks
+lastWickBar   = ta.barssince(wickBullEMA or wickBearEMA)
+wickBull      = wickBullEMA and (na(lastWickBar) or lastWickBar > cooldownBars)
+wickBear      = wickBearEMA and (na(lastWickBar) or lastWickBar > cooldownBars)
+
+// ============================================================
+// SINAIS FINAIS
+// ============================================================
+buySignal  = elephantBull or wickBull
+sellSignal = elephantBear or wickBear
+
+// ============================================================
+// CALCULO STOP E TARGET
+// ============================================================
+f_calcStop(float entry, float hi, float lo, string dir) =>
+    float dist = switch stopMode
+        "half"  => (hi - lo) * 0.5
+        "full"  => hi - lo
+        => (hi - lo) * 0.1
+    dir == "buy" ? entry - dist : entry + dist
+
+f_calcTarget(float entry, float stopLoss, string dir) =>
+    float risk = math.abs(entry - stopLoss)
+    dir == "buy" ? entry + risk * rrRatio : entry - risk * rrRatio
+
+// Entry: high para buy, low para sell (igual ao bot)
+entryPrice  = buySignal ? high : sellSignal ? low : na
+stopPrice   = buySignal ? f_calcStop(high, high, low, "buy") : sellSignal ? f_calcStop(low, high, low, "sell") : na
+targetPrice = buySignal ? f_calcTarget(high, stopPrice, "buy") : sellSignal ? f_calcTarget(low, stopPrice, "sell") : na
+
+// ============================================================
+// EXECUCAO
+// ============================================================
+if buySignal and strategy.position_size <= 0
+    strategy.entry("Long", strategy.long)
+    strategy.exit("Exit Long", "Long", stop=stopPrice, limit=targetPrice)
+
+if sellSignal and strategy.position_size >= 0
+    strategy.entry("Short", strategy.short)
+    strategy.exit("Exit Short", "Short", stop=stopPrice, limit=targetPrice)
+
+// ============================================================
+// PLOTS
+// ============================================================
+plotshape(showElephant and elephantBull, "Elephant Bull", shape.triangleup, location.belowbar, color.green, size=size.small, text="E+")
+plotshape(showElephant and elephantBear, "Elephant Bear", shape.triangledown, location.abovebar, color.red, size=size.small, text="E-")
+plotshape(showWick and wickBull, "Wick Bull", shape.triangleup, location.belowbar, color.lime, size=size.tiny, text="W+")
+plotshape(showWick and wickBear, "Wick Bear", shape.triangledown, location.abovebar, color.orange, size=size.tiny, text="W-")
+
+plot(showEMA ? ema20 : na, "EMA", color=color.new(color.yellow, 30), linewidth=2)
+
+var float plotStop   = na
+var float plotTarget = na
+var float plotEntry  = na
+
+if buySignal or sellSignal
+    plotEntry  := entryPrice
+    plotStop   := stopPrice
+    plotTarget := targetPrice
+
+plot(plotStop, "Stop", color=color.red, style=plot.style_linebr, linewidth=1)
+plot(plotTarget, "Target", color=color.green, style=plot.style_linebr, linewidth=1)
+plot(plotEntry, "Entry", color=color.blue, style=plot.style_linebr, linewidth=1)
+
+// ============================================================
+// TABELA DEBUG - Mostra valores nas barras com sinal
+// ============================================================
+var table debugTable = table.new(position.top_right, 6, 20, bgcolor=color.new(color.black, 80))
+
+if barstate.islast
+    table.cell(debugTable, 0, 0, "WickUp", text_color=color.white, text_size=size.small)
+    table.cell(debugTable, 1, 0, "WickDn", text_color=color.white, text_size=size.small)
+    table.cell(debugTable, 2, 0, "Body", text_color=color.white, text_size=size.small)
+    table.cell(debugTable, 3, 0, "MaxWick", text_color=color.white, text_size=size.small)
+    table.cell(debugTable, 4, 0, "isWick", text_color=color.white, text_size=size.small)
+    table.cell(debugTable, 5, 0, "Signal", text_color=color.white, text_size=size.small)
+    
+    table.cell(debugTable, 0, 1, str.tostring(wickUp, "#.##"), text_color=color.yellow, text_size=size.small)
+    table.cell(debugTable, 1, 1, str.tostring(wickDn, "#.##"), text_color=color.yellow, text_size=size.small)
+    table.cell(debugTable, 2, 1, str.tostring(body, "#.##"), text_color=color.yellow, text_size=size.small)
+    table.cell(debugTable, 3, 1, str.tostring(maxWick, "#.##"), text_color=color.yellow, text_size=size.small)
+    table.cell(debugTable, 4, 1, str.tostring(cond1_wick), text_color=color.yellow, text_size=size.small)
+    table.cell(debugTable, 5, 1, buySignal ? "BUY" : sellSignal ? "SELL" : "---", text_color=buySignal ? color.green : sellSignal ? color.red : color.gray, text_size=size.small)
+
+// ============================================================
+// ALERTAS
+// ============================================================
+alertcondition(buySignal, "Buy Signal", "Elephant/Wick BUY on {{ticker}} {{interval}}")
+alertcondition(sellSignal, "Sell Signal", "Elephant/Wick SELL on {{ticker}} {{interval}}")
