@@ -164,7 +164,8 @@ class TelegramBot:
         self.open_positions = remaining
         return closed
 
-    async def cmd_start(update, context):
+
+async def cmd_start(update, context):
     await update.message.reply_text(
         f"*Bot PAXG Patterns*\n\n"
         f"Par: {SYMBOL}\n"
